@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'features/home/home_screen.dart';
+import 'package:chat_tube/features/home/screens/home_screen.dart';
 import 'core/theme.dart';
 
 class MyApp extends StatelessWidget {
@@ -7,10 +7,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Chat Tube',
-      theme: theme,
-      home: HomeScreen(),
-    );
+    return MaterialApp(title: 'Chat Tube', theme: theme, home: HomeScreen());
   }
 }
