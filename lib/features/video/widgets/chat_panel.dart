@@ -3,9 +3,8 @@ import 'package:chat_tube/models/chat_message.dart';
 
 class ChatPanel extends StatefulWidget {
   final String videoId;
-  final VoidCallback onClearChat;
 
-  const ChatPanel({required this.videoId, required this.onClearChat});
+  const ChatPanel({Key? key, required this.videoId}) : super(key: key);
 
   @override
   State<ChatPanel> createState() => ChatPanelState();
