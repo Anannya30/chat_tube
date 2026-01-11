@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:chat_tube/models/video_model.dart';
+import 'package:chat_tube/features/video/widgets/chat_panel.dart';
 
 class VideoScreen extends StatefulWidget {
   final VideoModel video;
@@ -13,6 +14,7 @@ class VideoScreen extends StatefulWidget {
 
 class _VideoScreenState extends State<VideoScreen> {
   late YoutubePlayerController _controller;
+  final GlobalKey<ChatPanelState> _chatKey = GlobalKey();
 
   @override
   void initState() {
@@ -22,6 +24,14 @@ class _VideoScreenState extends State<VideoScreen> {
     _controller = YoutubePlayerController(
       initialVideoId: widget.video.youtubeId,
       flags: YoutubePlayerFlags(autoPlay: true, mute: false),
+    );
+  }
+
+  void _clearChat() {
+    _chatKey.currentState?.clearMessages();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Chat cleared'), duration: Duration(seconds: 1)),
     );
   }
 
@@ -36,7 +46,14 @@ class _VideoScreenState extends State<VideoScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('ChatTube'),
-        backgroundColor: Color(0xFFB71C1C), // Your deep red
+        backgroundColor: Color(0xFFB71C1C),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.delete_outline),
+            tooltip: 'Clear chat',
+            onPressed: _clearChat,
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -75,15 +92,7 @@ class _VideoScreenState extends State<VideoScreen> {
 
           // Chat Section (placeholder for now)
           Expanded(
-            child: Container(
-              color: Colors.grey[100],
-              child: Center(
-                child: Text(
-                  'Chat interface will go here',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-              ),
-            ),
+            child: ChatPanel(videoId: widget.video.id, onClearChat: _clearChat),
           ),
         ],
       ),
