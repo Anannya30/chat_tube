@@ -47,8 +47,18 @@ app.*.map.json
 
 # Environment
 .env
-lib/core/config/api_config.dart
+android/app/google-services.json
    
 # IDE
 .idea/
 .vscode/
+
+# API keys
+lib/core/config/api_config.dart
+
+# Node
+node_modules/
+backend/node_modules/
+
+# Media / generated files
+*.mp3
