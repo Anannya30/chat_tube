@@ -7,12 +7,15 @@ import cors from "cors";
 import axios from "axios";
 import fs from "fs";
 import { execSync } from "child_process";
+import { chunkTranscriptWithTimestamps } from "./utils/chunking.js";
+
 
 const app = express();
 app.use(cors());
 
 const API_KEY = process.env.ASSEMBLYAI_API_KEY;
 if (!API_KEY) throw new Error("AssemblyAI key missing");
+
 
 // STEP 1: Download audio (FORCED filename)
 function downloadAudio(videoId) {
@@ -69,7 +72,16 @@ async function pollTranscript(id) {
             { headers: { Authorization: API_KEY } }
         );
 
-        if (res.data.status === "completed") return res.data.text;
+        if (res.data.status === "completed") {
+            console.log("🧪 RAW WORD SAMPLE:");
+            console.log(res.data.words.slice(0, 5));
+
+            return {
+                text: res.data.text,
+                words: res.data.words   // <-- CRITICAL
+            };
+        }
+
         if (res.data.status === "error") throw new Error(res.data.error);
 
         await new Promise(r => setTimeout(r, 3000));
@@ -96,9 +108,20 @@ app.get("/transcript", async (req, res) => {
         const transcript = await pollTranscript(transcriptId);
         console.log("✅ Transcript done");
 
+        const chunks = chunkTranscriptWithTimestamps(transcript.words);
+
+        console.log("🧩 Chunks:", chunks.length);
+        console.log("🧪 CHUNK SAMPLE:");
+        console.log(JSON.stringify(chunks[0], null, 2));
+
+
         fs.unlinkSync(audioFile);
 
-        res.json({ videoId, transcript });
+        res.json({
+            videoId,
+            transcript: transcript.text,
+            words: transcript.words
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
