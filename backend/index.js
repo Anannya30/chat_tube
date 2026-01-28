@@ -8,6 +8,7 @@ import axios from "axios";
 import fs from "fs";
 import { execSync } from "child_process";
 import { chunkTranscriptWithTimestamps } from "./utils/chunking.js";
+import { embedText } from "./utils/embeddings.js";
 
 
 const app = express();
@@ -73,7 +74,6 @@ async function pollTranscript(id) {
         );
 
         if (res.data.status === "completed") {
-            console.log("🧪 RAW WORD SAMPLE:");
             console.log(res.data.words.slice(0, 5));
 
             return {
@@ -109,10 +109,26 @@ app.get("/transcript", async (req, res) => {
         console.log("✅ Transcript done");
 
         const chunks = chunkTranscriptWithTimestamps(transcript.words);
+        console.log("Before semantic merge:", chunks.length);
 
-        console.log("🧩 Chunks:", chunks.length);
-        console.log("🧪 CHUNK SAMPLE:");
-        console.log(JSON.stringify(chunks[0], null, 2));
+        // STEP: Embed each chunk BEFORE semantic merge
+        const chunkEmbeddings = [];
+        for (const chunk of chunks) {
+            const embedding = await embedText(chunk.text);
+
+            chunkEmbeddings.push({
+                ...chunk,
+                embedding,
+            });
+        }
+
+        console.log("Chunk embeddings created:", chunkEmbeddings.length);
+
+        const testEmbedding = await embedText(
+            "Backpropagation is used to train neural networks."
+        );
+        console.log("Embedding length:", testEmbedding.length);
+
 
 
         fs.unlinkSync(audioFile);

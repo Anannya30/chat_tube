@@ -8,8 +8,6 @@ class AIService {
     required String videoTranscript,
   }) async {
     try {
-      print('=== GEMINI REQUEST START ===');
-
       final prompt =
           '''You are a helpful AI assistant that answers questions about videos.
 
@@ -22,9 +20,12 @@ Provide a clear, concise answer based on the transcript.''';
 
       final response = await http.post(
         Uri.parse(
-          'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=${ApiConfig.geminiApiKey}',
+          'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent',
         ),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': ApiConfig.geminiApiKey,
+        },
         body: jsonEncode({
           'contents': [
             {
@@ -37,9 +38,6 @@ Provide a clear, concise answer based on the transcript.''';
         }),
       );
 
-      print('Status Code: ${response.statusCode}');
-      print('Response: ${response.body}');
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['candidates'][0]['content']['parts'][0]['text'];
@@ -49,6 +47,34 @@ Provide a clear, concise answer based on the transcript.''';
     } catch (e) {
       print('Exception: $e');
       return 'Error: $e';
+    }
+  }
+
+  /// EMBEDDINGS
+  Future<List<double>> getEmbedding(String text) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+          'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=${ApiConfig.geminiApiKey}',
+        ),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'content': {
+            'parts': [
+              {'text': text},
+            ],
+          },
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<double>.from(data['embedding']['values']);
+      } else {
+        throw Exception(response.body);
+      }
+    } catch (e) {
+      throw Exception(e);
     }
   }
 

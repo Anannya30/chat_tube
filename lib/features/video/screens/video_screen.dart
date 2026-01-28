@@ -59,7 +59,7 @@ class _VideoScreenState extends State<VideoScreen> {
 
       if (!mounted) return;
 
-      // ✅ SUCCESS CASE
+      //SUCCESS
       if (transcript != null && transcript.trim().isNotEmpty) {
         setState(() {
           _transcript = transcript;
@@ -68,13 +68,13 @@ class _VideoScreenState extends State<VideoScreen> {
         return;
       }
 
-      // ⏳ STILL PROCESSING → retry after delay
+      // STILL PROCESSING → retry after delay
       print('⏳ Transcript not ready yet, retrying in 5s...');
       Future.delayed(const Duration(seconds: 5), _loadTranscript);
     } catch (e) {
       if (!mounted) return;
 
-      // ⏳ Backend still working → retry
+      // Backend still working → retry
       if (e.toString().contains('PENDING') ||
           e.toString().contains('timeout')) {
         print('⏳ Backend still processing, retrying...');
@@ -82,7 +82,7 @@ class _VideoScreenState extends State<VideoScreen> {
         return;
       }
 
-      // ❌ REAL FAILURE
+      // REAL FAILURE
       setState(() {
         _transcriptError = 'Transcript could not be generated';
         _isLoadingTranscript = false;
@@ -169,6 +169,10 @@ class _VideoScreenState extends State<VideoScreen> {
         question: userMessage,
         videoTranscript: _transcript!,
       );
+
+      final embedding = await _aiService.getEmbedding(_transcript!);
+      // TEMP: sanity check
+      print('Embedding length: ${embedding.length}');
 
       final aiChatMessage = ChatMessage(
         text: aiResponse,
