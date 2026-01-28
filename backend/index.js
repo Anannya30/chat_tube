@@ -18,7 +18,7 @@ const API_KEY = process.env.ASSEMBLYAI_API_KEY;
 if (!API_KEY) throw new Error("AssemblyAI key missing");
 
 
-// STEP 1: Download audio (FORCED filename)
+//Download audio
 function downloadAudio(videoId) {
     const output = `audio_${videoId}.mp3`;
 
@@ -32,7 +32,7 @@ function downloadAudio(videoId) {
 }
 
 
-// STEP 2: Upload audio
+//Upload audio
 async function uploadAudio(filePath) {
     const stream = fs.createReadStream(filePath);
 
@@ -50,7 +50,7 @@ async function uploadAudio(filePath) {
     return res.data.upload_url;
 }
 
-// STEP 3: Create transcript
+// Create transcript
 async function createTranscript(audioUrl) {
     const res = await axios.post(
         "https://api.assemblyai.com/v2/transcript",
@@ -65,7 +65,7 @@ async function createTranscript(audioUrl) {
     return res.data.id;
 }
 
-// STEP 4: Poll transcript
+//Poll transcript
 async function pollTranscript(id) {
     while (true) {
         const res = await axios.get(
@@ -78,7 +78,7 @@ async function pollTranscript(id) {
 
             return {
                 text: res.data.text,
-                words: res.data.words   // <-- CRITICAL
+                words: res.data.words
             };
         }
 
@@ -111,7 +111,7 @@ app.get("/transcript", async (req, res) => {
         const chunks = chunkTranscriptWithTimestamps(transcript.words);
         console.log("Before semantic merge:", chunks.length);
 
-        // STEP: Embed each chunk BEFORE semantic merge
+        // Embed each chunk BEFORE semantic merge
         const chunkEmbeddings = [];
         for (const chunk of chunks) {
             const embedding = await embedText(chunk.text);
@@ -145,5 +145,5 @@ app.get("/transcript", async (req, res) => {
 });
 
 app.listen(3000, () =>
-    console.log("✅ Backend running on http://localhost:3000")
+    console.log("Backend running on http://localhost:3000")
 );

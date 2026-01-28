@@ -3,7 +3,7 @@ class VideoModel {
   final String title;
   final String thumbnailUrl;
   final String duration;
-  final String youtubeId; // We'll need this later for actual videos
+  final String youtubeId;
 
   VideoModel({
     required this.id,
@@ -13,7 +13,7 @@ class VideoModel {
     required this.youtubeId,
   });
 
-  // Convert JSON to VideoModel (you'll need this for Firebase later)
+  // Convert JSON to VideoModel
   factory VideoModel.fromJson(Map<String, dynamic> json) {
     return VideoModel(
       id: json['id'],
@@ -24,7 +24,7 @@ class VideoModel {
     );
   }
 
-  // Convert VideoModel to JSON (for storing in Firebase)
+  // Convert VideoModel to JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,
