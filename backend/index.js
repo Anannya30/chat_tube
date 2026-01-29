@@ -8,7 +8,13 @@ import axios from "axios";
 import fs from "fs";
 import { execSync } from "child_process";
 import { chunkTranscriptWithTimestamps } from "./utils/chunking.js";
+import { semanticMerge } from "./utils/semanticchunking.js";
 import { embedText } from "./utils/embeddings.js";
+import { cosineSimilarity } from "./utils/similarity.js";
+import { evaluateConfidence } from "./utils/confidence.js";
+import { generateGroundedAnswer } from "./utils/llm.js";
+let mergedChunks = [];
+
 
 
 const app = express();
@@ -112,17 +118,22 @@ app.get("/transcript", async (req, res) => {
         console.log("Before semantic merge:", chunks.length);
 
         // Embed each chunk BEFORE semantic merge
-        const chunkEmbeddings = [];
+        const embeddings = [];
         for (const chunk of chunks) {
             const embedding = await embedText(chunk.text);
-
-            chunkEmbeddings.push({
-                ...chunk,
-                embedding,
-            });
+            embeddings.push(embedding);
         }
 
-        console.log("Chunk embeddings created:", chunkEmbeddings.length);
+        console.log("Chunk embeddings created:", embeddings.length);
+
+        mergedChunks = semanticMerge(chunks, embeddings);
+
+        for (let i = 0; i < mergedChunks.length; i++) {
+            mergedChunks[i].embedding = await embedText(mergedChunks[i].text);
+        }
+
+        console.log("After semantic merge:", mergedChunks.length);
+
 
         const testEmbedding = await embedText(
             "Backpropagation is used to train neural networks."
@@ -143,6 +154,77 @@ app.get("/transcript", async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+//embedding the question asked and picking top-k chunks
+app.post("/ask", express.json(), async (req, res) => {
+    const { question } = req.body;
+
+    if (!question) {
+        return res.status(400).json({ error: "Question required" });
+    }
+
+    if (!mergedChunks.length) {
+        return res.status(400).json({
+            error: "Transcript not processed yet. Call /transcript first."
+        });
+    }
+
+    try {
+        const questionEmbedding = await embedText(question);
+
+        const topChunks = mergedChunks
+            .map(chunk => ({
+                text: chunk.text,
+                startTime: chunk.startTime,
+                endTime: chunk.endTime,
+                score: cosineSimilarity(questionEmbedding, chunk.embedding),
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 3);
+
+        const bestScore = topChunks[0]?.score ?? 0;
+        const confidence = evaluateConfidence(bestScore);
+
+        if (!confidence.allowAnswer) {
+            return res.json({
+                question,
+                answer: null,
+                confidence: {
+                    score: Number(bestScore.toFixed(3)),
+                    level: confidence.level
+                },
+                message: "This question is not answered in the video."
+            });
+        }
+
+        const bestChunk = topChunks[0];
+        console.log("Calling Gemini with context chunk...");
+        const answer = await generateGroundedAnswer(
+            question,
+            bestChunk.text
+        );
+
+
+        res.json({
+            question,
+            answer,
+            confidence: {
+                score: Number(bestScore.toFixed(3)),
+                level: confidence.level
+            },
+            source: {
+                startTime: bestChunk.startTime,
+                endTime: bestChunk.endTime
+            }
+        });
+
+    } catch (err) {
+        console.error("ASK ERROR:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
 
 app.listen(3000, () =>
     console.log("Backend running on http://localhost:3000")
