@@ -13,12 +13,20 @@ import { embedText } from "./utils/embeddings.js";
 import { cosineSimilarity } from "./utils/similarity.js";
 import { evaluateConfidence } from "./utils/confidence.js";
 import { generateGroundedAnswer } from "./utils/llm.js";
+import youtubeRoutes from "./routes/youtube.js";
 let mergedChunks = [];
 
 
 
 const app = express();
 app.use(cors());
+app.use(express.json());
+app.use("/youtube", youtubeRoutes);
+
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`server is running on PORT ${PORT}`);
+});
 
 const API_KEY = process.env.ASSEMBLYAI_API_KEY;
 if (!API_KEY) throw new Error("AssemblyAI key missing");
@@ -36,6 +44,17 @@ function downloadAudio(videoId) {
 
     return output;
 }
+
+function isSummaryQuestion(q) {
+    const text = q.toLowerCase();
+    return (
+        text.includes("summary") ||
+        text.includes("summarize") ||
+        text.includes("overview") ||
+        text.includes("about this video")
+    );
+}
+
 
 
 //Upload audio
@@ -100,19 +119,19 @@ app.get("/transcript", async (req, res) => {
     if (!videoId) return res.status(400).json({ error: "videoId required" });
 
     try {
-        console.log("🎥 Video:", videoId);
+        console.log(" Video:", videoId);
 
         const audioFile = downloadAudio(videoId);
-        console.log("🎧 Audio downloaded:", audioFile);
+        console.log("Audio downloaded:", audioFile);
 
         const audioUrl = await uploadAudio(audioFile);
-        console.log("☁️ Audio uploaded");
+        console.log("Audio uploaded");
 
         const transcriptId = await createTranscript(audioUrl);
-        console.log("🧠 Transcribing...");
+        console.log("Transcribing...");
 
         const transcript = await pollTranscript(transcriptId);
-        console.log("✅ Transcript done");
+        console.log("Transcript done");
 
         const chunks = chunkTranscriptWithTimestamps(transcript.words);
         console.log("Before semantic merge:", chunks.length);
@@ -197,13 +216,20 @@ app.post("/ask", express.json(), async (req, res) => {
             });
         }
 
-        const bestChunk = topChunks[0];
-        console.log("Calling Gemini with context chunk...");
-        const answer = await generateGroundedAnswer(
-            question,
-            bestChunk.text
+        const contextText = isSummaryQuestion(question)
+            ? mergedChunks.map(c => c.text).join("\n\n")
+            : topChunks.map(c => c.text).join("\n\n");
+
+        console.log(
+            isSummaryQuestion(question)
+                ? "Calling Gemini with FULL transcript context..."
+                : "Calling Gemini with TOP chunks..."
         );
 
+        const answer = await generateGroundedAnswer(
+            question,
+            contextText
+        );
 
         res.json({
             question,

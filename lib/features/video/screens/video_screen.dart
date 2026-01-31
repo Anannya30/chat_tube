@@ -44,6 +44,7 @@ class _VideoScreenState extends State<VideoScreen> {
 
     _loadTranscript();
     _checkFavoriteStatus();
+    _loadChatHistory();
   }
 
   Future<void> _loadTranscript() async {
@@ -69,7 +70,7 @@ class _VideoScreenState extends State<VideoScreen> {
       }
 
       // STILL PROCESSING → retry after delay
-      print('⏳ Transcript not ready yet, retrying in 5s...');
+      print('Transcript not ready yet, retrying in 5s...');
       Future.delayed(const Duration(seconds: 5), _loadTranscript);
     } catch (e) {
       if (!mounted) return;
@@ -77,7 +78,7 @@ class _VideoScreenState extends State<VideoScreen> {
       // Backend still working → retry
       if (e.toString().contains('PENDING') ||
           e.toString().contains('timeout')) {
-        print('⏳ Backend still processing, retrying...');
+        print('Backend still processing, retrying...');
         Future.delayed(const Duration(seconds: 5), _loadTranscript);
         return;
       }
@@ -86,6 +87,26 @@ class _VideoScreenState extends State<VideoScreen> {
       setState(() {
         _transcriptError = 'Transcript could not be generated';
         _isLoadingTranscript = false;
+      });
+    }
+  }
+
+  Future<void> _loadChatHistory() async {
+    try {
+      final history = await _firestoreService.getChatHistory(widget.video.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _messages.addAll(history);
+        _isLoadingHistory = false;
+      });
+    } catch (e) {
+      print("History load failed: $e");
+      if (!mounted) return;
+
+      setState(() {
+        _isLoadingHistory = false;
       });
     }
   }
@@ -165,17 +186,13 @@ class _VideoScreenState extends State<VideoScreen> {
     );
 
     try {
-      final aiResponse = await _aiService.getAIResponse(
-        question: userMessage,
-        videoTranscript: _transcript!,
-      );
+      final result = await _aiService.askQuestion(userMessage);
 
-      final embedding = await _aiService.getEmbedding(_transcript!);
-      // TEMP: sanity check
-      print('Embedding length: ${embedding.length}');
+      final answer = result["answer"] ?? "No supported answer found.";
+      final confidence = result["confidence"]?["level"] ?? "unknown";
 
       final aiChatMessage = ChatMessage(
-        text: aiResponse,
+        text: "$answer\n\n(confidence: $confidence)",
         isUser: false,
         timestamp: DateTime.now(),
       );
