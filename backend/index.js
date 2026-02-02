@@ -6,6 +6,7 @@ import express from "express";
 import cors from "cors";
 import axios from "axios";
 import fs from "fs";
+import crypto from "crypto";
 import { execSync } from "child_process";
 import { chunkTranscriptWithTimestamps } from "./utils/chunking.js";
 import { semanticMerge } from "./utils/semanticchunking.js";
@@ -14,8 +15,7 @@ import { cosineSimilarity } from "./utils/similarity.js";
 import { evaluateConfidence } from "./utils/confidence.js";
 import { generateGroundedAnswer } from "./utils/llm.js";
 import youtubeRoutes from "./routes/youtube.js";
-let mergedChunks = [];
-
+import { createClient } from "@supabase/supabase-js";
 
 
 const app = express();
@@ -23,13 +23,13 @@ app.use(cors());
 app.use(express.json());
 app.use("/youtube", youtubeRoutes);
 
-const PORT = 3000;
-app.listen(PORT, () => {
-    console.log(`server is running on PORT ${PORT}`);
-});
-
 const API_KEY = process.env.ASSEMBLYAI_API_KEY;
 if (!API_KEY) throw new Error("AssemblyAI key missing");
+
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 
 //Download audio
@@ -145,21 +145,31 @@ app.get("/transcript", async (req, res) => {
 
         console.log("Chunk embeddings created:", embeddings.length);
 
-        mergedChunks = semanticMerge(chunks, embeddings);
+        const mergedChunks = semanticMerge(chunks, embeddings);
+
+        const rows = [];
+        console.log("Supabase connected:", !!supabase);
 
         for (let i = 0; i < mergedChunks.length; i++) {
-            mergedChunks[i].embedding = await embedText(mergedChunks[i].text);
+            const embedding = await embedText(mergedChunks[i].text);
+
+            rows.push({
+                id: crypto.randomUUID(),
+                video_id: videoId,
+                chunk_index: i,
+                text: mergedChunks[i].text,
+                start_time: mergedChunks[i].startTime,
+                end_time: mergedChunks[i].endTime,
+                embedding
+            });
         }
 
-        console.log("After semantic merge:", mergedChunks.length);
+        const { error } = await supabase
+            .from("video_chunks")
+            .insert(rows);
 
-
-        const testEmbedding = await embedText(
-            "Backpropagation is used to train neural networks."
-        );
-        console.log("Embedding length:", testEmbedding.length);
-
-
+        if (error) throw error;
+        console.log("Stored chunks in DB", rows.length);
 
         fs.unlinkSync(audioFile);
 
@@ -169,47 +179,66 @@ app.get("/transcript", async (req, res) => {
             words: transcript.words
         });
     } catch (err) {
-        console.error(err);
+        console.error("Transcript error:", err);
         res.status(500).json({ error: err.message });
     }
 });
 
 //embedding the question asked and picking top-k chunks
-app.post("/ask", express.json(), async (req, res) => {
-    const { question } = req.body;
+app.post("/ask", async (req, res) => {
+    const { videoId, question } = req.body;
 
-    if (!question) {
-        return res.status(400).json({ error: "Question required" });
-    }
-
-    if (!mergedChunks.length) {
+    if (!videoId || !question) {
         return res.status(400).json({
-            error: "Transcript not processed yet. Call /transcript first."
+            error: "videoId and question are required"
         });
     }
+
 
     try {
         const questionEmbedding = await embedText(question);
 
-        const topChunks = mergedChunks
-            .map(chunk => ({
-                text: chunk.text,
-                startTime: chunk.startTime,
-                endTime: chunk.endTime,
-                score: cosineSimilarity(questionEmbedding, chunk.embedding),
-            }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 3);
+        const { data: chunks, error } = await supabase
+            .from("video_chunks")
+            .select("text, start_time, end_time, embedding")
+            .eq("video_id", videoId);
 
-        const bestScore = topChunks[0]?.score ?? 0;
-        const confidence = evaluateConfidence(bestScore);
+        if (error) throw error;
+        if (!chunks.length) {
+            return res.status(404).json({
+                error: "No transcript for this video"
+            });
+        }
+
+        const scoredChunks = chunks
+            .filter(c => Array.isArray(c.embedding))
+            .map(c => ({
+                text: c.text,
+                startTime: c.start_time,
+                endTime: c.end_time,
+                score: cosineSimilarity(questionEmbedding, c.embedding)
+            }));
+
+        if (!scoredChunks.length) {
+            return res.json({
+                question,
+                answer: null,
+                message: "No valid embeddings found for this video."
+            });
+        }
+
+        scoredChunks.sort((a, b) => b.score - a.score);
+        const topChunks = scoredChunks.slice(0, 3);
+        const bestChunk = topChunks[0];
+
+        const confidence = evaluateConfidence(bestChunk.score);
 
         if (!confidence.allowAnswer) {
             return res.json({
                 question,
                 answer: null,
                 confidence: {
-                    score: Number(bestScore.toFixed(3)),
+                    score: Number(bestChunk.score.toFixed(3)),
                     level: confidence.level
                 },
                 message: "This question is not answered in the video."
@@ -217,14 +246,8 @@ app.post("/ask", express.json(), async (req, res) => {
         }
 
         const contextText = isSummaryQuestion(question)
-            ? mergedChunks.map(c => c.text).join("\n\n")
+            ? chunks.map(c => c.text).join("\n\n")
             : topChunks.map(c => c.text).join("\n\n");
-
-        console.log(
-            isSummaryQuestion(question)
-                ? "Calling Gemini with FULL transcript context..."
-                : "Calling Gemini with TOP chunks..."
-        );
 
         const answer = await generateGroundedAnswer(
             question,
@@ -235,7 +258,7 @@ app.post("/ask", express.json(), async (req, res) => {
             question,
             answer,
             confidence: {
-                score: Number(bestScore.toFixed(3)),
+                score: Number(bestChunk.score.toFixed(3)),
                 level: confidence.level
             },
             source: {
@@ -249,7 +272,6 @@ app.post("/ask", express.json(), async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
 
 
 app.listen(3000, () =>
