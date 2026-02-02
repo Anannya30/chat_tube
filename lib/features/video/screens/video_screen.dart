@@ -186,7 +186,10 @@ class _VideoScreenState extends State<VideoScreen> {
     );
 
     try {
-      final result = await _aiService.askQuestion(userMessage);
+      final result = await _aiService.askQuestion(
+        videoId: widget.video.id,
+        question: userMessage,
+      );
 
       final answer = result["answer"] ?? "No supported answer found.";
       final confidence = result["confidence"]?["level"] ?? "unknown";

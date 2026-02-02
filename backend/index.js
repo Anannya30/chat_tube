@@ -38,7 +38,11 @@ function downloadAudio(videoId) {
 
     const YT_DLP = `"C:\\yt-dlp\\yt-dlp.exe"`;
 
-    const command = `${YT_DLP} -x --audio-format mp3 -o audio_${videoId}.mp3 https://www.youtube.com/watch?v=${videoId}`;
+    const command = `${YT_DLP} \
+        -x --audio-format mp3 \
+        -o "${output}" \
+        https://www.youtube.com/watch?v=${videoId}`;
+
     console.log("COMMAND =", command);
     execSync(command, { stdio: "inherit" });
 
@@ -209,15 +213,32 @@ app.post("/ask", async (req, res) => {
                 error: "No transcript for this video"
             });
         }
+        console.log(typeof chunks[0].embedding[0], chunks[0].embedding[0]);
+
 
         const scoredChunks = chunks
-            .filter(c => Array.isArray(c.embedding))
-            .map(c => ({
-                text: c.text,
-                startTime: c.start_time,
-                endTime: c.end_time,
-                score: cosineSimilarity(questionEmbedding, c.embedding)
-            }));
+            .map(c => {
+                let embedding = c.embedding;
+
+                // FIX 1: handle stringified vectors
+                if (typeof embedding === "string") {
+                    embedding = JSON.parse(embedding);
+                }
+
+                // FIX 2: force numbers
+                embedding = embedding.map(Number);
+
+                if (!Array.isArray(embedding)) return null;
+
+                return {
+                    text: c.text,
+                    startTime: c.start_time,
+                    endTime: c.end_time,
+                    score: cosineSimilarity(questionEmbedding, embedding),
+                };
+            })
+            .filter(Boolean);
+
 
         if (!scoredChunks.length) {
             return res.json({

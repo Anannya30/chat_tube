@@ -25,6 +25,7 @@ export async function videodata(videoIds) {
         thumbnail: item.snippet.thumbnails.medium.url,
         duration: item.contentDetails.duration,
         captionAvailable: item.contentDetails.caption === "true",
+        youtubeId: item.id,
     }));
 
 }

@@ -2,11 +2,14 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class AIService {
-  Future<Map<String, dynamic>> askQuestion(String question) async {
+  Future<Map<String, dynamic>> askQuestion({
+    required String question,
+    required String videoId,
+  }) async {
     final response = await http.post(
       Uri.parse("http://10.0.2.2:3000/ask"),
       headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"question": question}),
+      body: jsonEncode({"question": question, "videoId": videoId}),
     );
 
     if (response.statusCode == 200) {
