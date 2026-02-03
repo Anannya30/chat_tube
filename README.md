@@ -43,22 +43,22 @@ The project is currently not deployed and runs locally for development and exper
   - If confidence is low → the system refuses to answer
 - Question, answer (or refusal), and confidence score are stored in chat history
 
-## 📸 Application Screenshots
+## Screenshots
 
 ### 1. Home Screen
-![Home Screen](screenshots/home_screen.png)
+![Home Screen](screenshots/home screen.png)
 
 ### 2. Topic Search
-![Topic Search](screenshots/search_bar.png)
+![Topic Search](screenshots/search bar.png)
 
 ### 3. Video Suggestions
-![Video Suggestions](screenshots/video_suggestions.png)
+![Video Suggestions](screenshots/video suggestions.png)
 
 ### 4. Loading & Processing
-![Loading Screen](screenshots/loading_screen.png)
+![Loading Screen](screenshots/loading screen.png)
 
 ### 5. Chat with Video (RAG-powered)
-![Chat Screen](screenshots/chat_screen_final.png)
+![Chat Screen](screenshots/chat screen final.png)
 
 ## How It Works
 
