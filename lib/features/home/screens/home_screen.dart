@@ -11,11 +11,24 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final SearchService _searchService = SearchService();
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   List<VideoModel> _videos = [];
   bool _isLoading = false;
   bool _hasSearched = false;
   String? _errorMessage;
+  bool _isKeyboardVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _searchFocusNode.addListener(() {
+      setState(() {
+        _isKeyboardVisible = _searchFocusNode.hasFocus;
+      });
+    });
+  }
 
   Future<void> _searchVideos() async {
     final query = _searchController.text.trim();
@@ -29,6 +42,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       return;
     }
+
+    _searchFocusNode.unfocus();
 
     setState(() {
       _isLoading = true;
@@ -96,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: TextField(
                     controller: _searchController,
+                    focusNode: _searchFocusNode,
                     style: TextStyle(color: Colors.black87),
                     decoration: InputDecoration(
                       hintText: 'Search videos...',
@@ -247,20 +263,25 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
-            SizedBox(height: 32),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                _buildSuggestionChip('Machine Learning'),
-                _buildSuggestionChip('Physics'),
-                _buildSuggestionChip('Programming'),
-                _buildSuggestionChip('Mathematics'),
-                _buildSuggestionChip('Biology'),
-                _buildSuggestionChip('History'),
-              ],
-            ),
+
+            // Only show chips when keyboard is hidden
+            if (!_isKeyboardVisible) ...[
+              // ← ADD THIS CONDITION
+              SizedBox(height: 32),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  _buildSuggestionChip('Machine Learning'),
+                  _buildSuggestionChip('Physics'),
+                  _buildSuggestionChip('Programming'),
+                  _buildSuggestionChip('Mathematics'),
+                  _buildSuggestionChip('Biology'),
+                  _buildSuggestionChip('History'),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -272,6 +293,7 @@ class _HomeScreenState extends State<HomeScreen> {
       label: Text(label),
       onPressed: () {
         _searchController.text = label;
+        _searchFocusNode.unfocus();
         _searchVideos();
       },
       backgroundColor: Colors.grey[200],
@@ -282,6 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 }
